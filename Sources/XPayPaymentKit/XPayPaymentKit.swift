@@ -1,3 +1,10 @@
+
+//
+//  XPay Swift SDK
+//
+//  Created by Amir Ghafoor on 21/05/2024.
+//
+
 import SwiftUI
 import WebKit
 import Foundation
@@ -343,14 +350,24 @@ struct WebView: UIViewRepresentable {
         contentController.add(context.coordinator, name: "XPayPostServerEvent")
         webView.navigationDelegate = context.coordinator
         webView.isHidden = shouldHide
-        webView.loadHTMLString(htmlContent, baseURL: nil)
+        if let url = URL(string: htmlContent), url.scheme != nil {
+            let urlRequest = URLRequest(url: url)
+            webView.load(urlRequest)
+        } else{
+            webView.loadHTMLString(htmlContent, baseURL: nil)
+        }
         return webView
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         if webView.url == nil || webView.url?.absoluteString == "about:blank" {
             webView.isHidden = shouldHide
-            webView.loadHTMLString(htmlContent, baseURL: nil)
+            if let url = URL(string: htmlContent), url.scheme != nil {
+                let urlRequest = URLRequest(url: url)
+                webView.load(urlRequest)
+            } else{
+                webView.loadHTMLString(htmlContent, baseURL: nil)
+            }
         }
     }
 }
@@ -427,7 +444,8 @@ public struct XPayPaymentForm: View {
                 let status = (lastPaymentResponse?["status"] as? String) ?? responseData["status"] as? String ?? "Unknown"
                 let htmlResponse = responseData["html_response"] as? [String: Any]
                 let isHiddenHtml = htmlResponse?["hidden"] as? Int ?? 0
-                let htmlWebContent = htmlResponse?["next_action"] as? String ?? ""
+                let redirectData = htmlResponse?["next_action"] as? [String: Any]
+                let htmlWebContent = redirectData?["redirect"] as? String ??  htmlResponse?["next_action"] as? String ?? ""
                 if (error == 1) {
                     self.triggerPaymentResponse?(["status": status, "error": true, "message": message])
                     return
