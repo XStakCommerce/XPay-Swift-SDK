@@ -388,7 +388,7 @@ public struct XPayPaymentForm: View {
     @State private var csHiddenhtmlContent = ""
     @State private var clientSecret = ""
     @State private var apiPayload: [String: Any] = [:]
-    @State private var baseURL: String = "https://xstak-pay-dev.xstak.com"
+    @State private var baseURL: String = "https://xstak-pay.xstak.com"
     @State private var triggerPaymentResponse: (([String: Any]) -> Void)? = nil
     @State private var isLoading = true
     public var onReady: ((Bool) -> Void)?
