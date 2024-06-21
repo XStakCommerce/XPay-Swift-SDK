@@ -265,8 +265,8 @@ public class XPayController: ObservableObject {
         }
     }
 
-    public func confirmMethod(customerName: String, clientSecret: String, paymentResponse: @escaping (([String: Any]) -> Void)) {
-        xPayElement?.confirmMethod(customerName: customerName, clientSecret: clientSecret, paymentResponse: paymentResponse)
+    public func confirmPayment(customerName: String, clientSecret: String, paymentResponse: @escaping (([String: Any]) -> Void)) {
+        xPayElement?.confirmPayment(customerName: customerName, clientSecret: clientSecret, paymentResponse: paymentResponse)
     }
 
     public func clear() {
@@ -419,7 +419,7 @@ public struct XPayPaymentForm: View {
         return hmacHex
     }
 
-    func confirmMethod(customerName: String, clientSecret: String, paymentResponse: @escaping (([String: Any]) -> Void)) {
+    func confirmPayment(customerName: String, clientSecret: String, paymentResponse: @escaping (([String: Any]) -> Void)) {
         self.triggerPaymentResponse = paymentResponse
         self.clientSecret = clientSecret
         let splitedExpiryDate = expiryDate.components(separatedBy: "/")
