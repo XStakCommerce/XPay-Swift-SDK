@@ -11,7 +11,7 @@ import Foundation
 import Combine
 import CryptoKit
 #if os(iOS)
-public struct Configuration {
+public struct CustomStyleConfiguration {
     public var inputConfiguration: InputConfiguration
     public var inputStyle: InputStyle
     public var inputLabelStyle: InputLabelStyle
@@ -33,7 +33,7 @@ public struct Configuration {
         self.errorMessageStyle = errorMessageStyle
     }
 
-    public static let defaultConfiguration = Configuration()
+    public static let defaultConfiguration = CustomStyleConfiguration()
 }
 
 public struct InputConfiguration {
@@ -265,8 +265,8 @@ public class XPayController: ObservableObject {
         }
     }
 
-    public func confirmMethod(customerName: String, clientSecret: String, paymentResponse: @escaping (([String: Any]) -> Void)) {
-        xPayElement?.confirmMethod(customerName: customerName, clientSecret: clientSecret, paymentResponse: paymentResponse)
+    public func confirmPayment(customerName: String, clientSecret: String, paymentResponse: @escaping (([String: Any]) -> Void)) {
+        xPayElement?.confirmPayment(customerName: customerName, clientSecret: clientSecret, paymentResponse: paymentResponse)
     }
 
     public func clear() {
@@ -393,11 +393,11 @@ public struct XPayPaymentForm: View {
     @State private var isLoading = true
     public var onReady: ((Bool) -> Void)?
     public var onBinDiscount: (([String: Any]) -> Void)?
-    var configuration: Configuration
+    var configuration: CustomStyleConfiguration
     var keysConfiguration: KeysConfiguration
     @ObservedObject var controller: XPayController
-    public init(keysConfiguration: KeysConfiguration, customStyling: Configuration = .defaultConfiguration, onBinDiscount: (([String: Any]) -> Void)? = nil, onReady: ((Bool) -> Void)? = nil, controller: XPayController) {
-        self.configuration = customStyling
+    public init(keysConfiguration: KeysConfiguration, customStyle: CustomStyleConfiguration = .defaultConfiguration, onBinDiscount: (([String: Any]) -> Void)? = nil, onReady: ((Bool) -> Void)? = nil, controller: XPayController) {
+        self.configuration = customStyle
         self.onReady = onReady
         self.keysConfiguration = keysConfiguration
         self.onBinDiscount = onBinDiscount
@@ -419,7 +419,7 @@ public struct XPayPaymentForm: View {
         return hmacHex
     }
 
-    func confirmMethod(customerName: String, clientSecret: String, paymentResponse: @escaping (([String: Any]) -> Void)) {
+    func confirmPayment(customerName: String, clientSecret: String, paymentResponse: @escaping (([String: Any]) -> Void)) {
         self.triggerPaymentResponse = paymentResponse
         self.clientSecret = clientSecret
         let splitedExpiryDate = expiryDate.components(separatedBy: "/")
