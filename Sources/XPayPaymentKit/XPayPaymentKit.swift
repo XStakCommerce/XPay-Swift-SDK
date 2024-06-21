@@ -396,8 +396,8 @@ public struct XPayPaymentForm: View {
     var configuration: CustomStyleConfiguration
     var keysConfiguration: KeysConfiguration
     @ObservedObject var controller: XPayController
-    public init(keysConfiguration: KeysConfiguration, customStyling: CustomStyleConfiguration = .defaultConfiguration, onBinDiscount: (([String: Any]) -> Void)? = nil, onReady: ((Bool) -> Void)? = nil, controller: XPayController) {
-        self.configuration = customStyling
+    public init(keysConfiguration: KeysConfiguration, customStyle: CustomStyleConfiguration = .defaultConfiguration, onBinDiscount: (([String: Any]) -> Void)? = nil, onReady: ((Bool) -> Void)? = nil, controller: XPayController) {
+        self.configuration = customStyle
         self.onReady = onReady
         self.keysConfiguration = keysConfiguration
         self.onBinDiscount = onBinDiscount
