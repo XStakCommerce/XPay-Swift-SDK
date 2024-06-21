@@ -11,7 +11,7 @@ import Foundation
 import Combine
 import CryptoKit
 #if os(iOS)
-public struct Configuration {
+public struct CustomStyleConfiguration {
     public var inputConfiguration: InputConfiguration
     public var inputStyle: InputStyle
     public var inputLabelStyle: InputLabelStyle
@@ -33,7 +33,7 @@ public struct Configuration {
         self.errorMessageStyle = errorMessageStyle
     }
 
-    public static let defaultConfiguration = Configuration()
+    public static let defaultConfiguration = CustomStyleConfiguration()
 }
 
 public struct InputConfiguration {
@@ -393,10 +393,10 @@ public struct XPayPaymentForm: View {
     @State private var isLoading = true
     public var onReady: ((Bool) -> Void)?
     public var onBinDiscount: (([String: Any]) -> Void)?
-    var configuration: Configuration
+    var configuration: CustomStyleConfiguration
     var keysConfiguration: KeysConfiguration
     @ObservedObject var controller: XPayController
-    public init(keysConfiguration: KeysConfiguration, customStyling: Configuration = .defaultConfiguration, onBinDiscount: (([String: Any]) -> Void)? = nil, onReady: ((Bool) -> Void)? = nil, controller: XPayController) {
+    public init(keysConfiguration: KeysConfiguration, customStyling: CustomStyleConfiguration = .defaultConfiguration, onBinDiscount: (([String: Any]) -> Void)? = nil, onReady: ((Bool) -> Void)? = nil, controller: XPayController) {
         self.configuration = customStyling
         self.onReady = onReady
         self.keysConfiguration = keysConfiguration
