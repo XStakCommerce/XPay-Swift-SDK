@@ -130,7 +130,6 @@ public struct ErrorMessageStyle {
         self.textSize = textSize
     }
 }
-
 public struct KeysConfiguration {
     public var accountId: String
     public var publicKey: String
@@ -464,7 +463,8 @@ public struct XPayPaymentForm: View {
                 }
             }, failure: { error in
                 if let apiError = error as? APIError {
-                    let message = (apiError.details["message"] as? String) ?? "Something Went Wrong"
+                    let errorValue = apiError.details["error"] as? [String: Any]
+                    let message = (errorValue?["message"] as? String) ?? (apiError.details["message"] as? String) ?? "Something Went Wrong"
                     self.triggerPaymentResponse?(["error": true, "status": "Failed", "message": message])
                 } else {
                     self.triggerPaymentResponse?(["error": true, "data": error])
@@ -635,7 +635,8 @@ public struct XPayPaymentForm: View {
                             }
                         }, failure: { error in
                             if let apiError = error as? APIError {
-                                let message = (apiError.details["message"] as? String) ?? "Something Went Wrong"
+                                let errorValue = apiError.details["error"] as? [String: Any]
+                                let message = (errorValue?["message"] as? String) ?? (apiError.details["message"] as? String) ?? "Something Went Wrong"
                                 self.triggerPaymentResponse?(["error": true, "status": "Failed", "message": message])
                             } else {
                                 self.triggerPaymentResponse?(["error": true, "data": error])
