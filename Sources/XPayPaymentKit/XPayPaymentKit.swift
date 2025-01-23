@@ -445,21 +445,24 @@ public struct XPayPaymentForm: View {
                 let isHiddenHtml = htmlResponse?["hidden"] as? Int ?? 0
                 let redirectData = htmlResponse?["next_action"] as? [String: Any]
                 let htmlWebContent = redirectData?["redirect"] as? String ??  htmlResponse?["next_action"] as? String ?? ""
-                if (error == 1) {
-                    self.triggerPaymentResponse?(["status": status, "error": true, "message": message])
-                    return
+                
+                if (!htmlWebContent.isEmpty && isHiddenHtml == 0) {
+                    DispatchQueue.main.async {
+                        self.htmlContent = htmlWebContent
+                        self.csHiddenhtmlContent = ""
+                    }
+                } else if (!htmlWebContent.isEmpty && isHiddenHtml == 1) {
+                    DispatchQueue.main.async {
+                        self.csHiddenhtmlContent = htmlWebContent
+                        self.htmlContent = ""
+                    }
                 } else if (error == 0 && htmlWebContent.isEmpty) {
                     self.triggerPaymentResponse?(["status": status, "error": false, "message": message])
                     clear()
                     return
-                } else if (error == 0 && !htmlWebContent.isEmpty && isHiddenHtml == 0) {
-                    DispatchQueue.main.async {
-                        self.htmlContent = htmlWebContent
-                    }
-                } else if (error == 0 && !htmlWebContent.isEmpty && isHiddenHtml == 1) {
-                    DispatchQueue.main.async {
-                        self.csHiddenhtmlContent = htmlWebContent
-                    }
+                } else if (error == 1) {
+                    self.triggerPaymentResponse?(["status": status, "error": true, "message": message])
+                    return
                 }
             }, failure: { error in
                 if let apiError = error as? APIError {
@@ -562,6 +565,7 @@ public struct XPayPaymentForm: View {
         request.setValue(keysConfiguration.publicKey, forHTTPHeaderField: "x-api-key")
         request.setValue(keysConfiguration.accountId, forHTTPHeaderField: "x-account-id")
         request.setValue(generateHash(payload: payload) ?? "", forHTTPHeaderField: "x-signature")
+        request.setValue("iOS-SDK", forHTTPHeaderField: "x-sdk-source")
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
         } catch {
@@ -621,17 +625,17 @@ public struct XPayPaymentForm: View {
                             let status = (lastPaymentResponse?["status"] as? String) ?? responseData["status"] as? String ?? "Unknown"
                             let htmlResponse = responseData["html_response"] as? [String: Any]
                             let htmlWebContent = htmlResponse?["next_action"] as? String ?? ""
-                            if (error == 1) {
-                                self.triggerPaymentResponse?(["status": status, "error": true, "message": message])
-                                return
+                            if (!htmlWebContent.isEmpty) {
+                                DispatchQueue.main.async {
+                                    self.htmlContent = htmlWebContent
+                                }
                             } else if (error == 0 && htmlWebContent.isEmpty) {
                                 self.triggerPaymentResponse?(["status": status, "error": false, "message": message])
                                 clear()
                                 return
-                            } else if (error == 0 && !htmlWebContent.isEmpty) {
-                                DispatchQueue.main.async {
-                                    self.htmlContent = htmlWebContent
-                                }
+                            } else if (error == 1) {
+                                self.triggerPaymentResponse?(["status": status, "error": true, "message": message])
+                                return
                             }
                         }, failure: { error in
                             if let apiError = error as? APIError {
