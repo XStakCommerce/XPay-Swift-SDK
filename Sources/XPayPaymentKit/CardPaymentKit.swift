@@ -110,7 +110,7 @@ struct WebView: UIViewRepresentable {
     }
 }
 
-public struct XPayPaymentForm: View,XPayFormProtocol {
+public struct XPayPaymentForm: View, XPayFormProtocol {
     @State private var cardNumber: String = ""
     @State private var expiryDate: String = ""
     @State private var cvv: String = ""
@@ -314,12 +314,8 @@ public struct XPayPaymentForm: View,XPayFormProtocol {
                     }
                 }
             } catch {
-                print("POST SERVER EVENT DATA: \(eventResponse)")
                 print("ERROR WHILE PARSING DATA FROM SERVER EVENT: \(error)")
             }
-        } else {
-            print("POST SERVER EVENT DATA: \(eventResponse)")
-            print("ERROR WHILE CREATING DATA FROM SERVER EVENT JSON STRING")
         }
     }
 
@@ -345,12 +341,8 @@ public struct XPayPaymentForm: View,XPayFormProtocol {
                     }
                 }
             } catch {
-                print("POST SERVER EVENT DATA: \(eventResponse)")
                 print("ERROR WHILE PARSING DATA FROM SERVER EVENT: \(error)")
             }
-        } else {
-            print("POST SERVER EVENT DATA: \(eventResponse)")
-            print("ERROR WHILE CREATING DATA FROM SERVER EVENT JSON STRING")
         }
     }
 
@@ -365,6 +357,8 @@ public struct XPayPaymentForm: View,XPayFormProtocol {
                         text: $cardNumber,
                         placeholder: configuration.inputConfiguration.cardNumber.placeholder,
                         keyboardType: .numberPad,
+                        textColor: isCardFieldFocused ? configuration.onFocusInputStyle.textColor : isCardNumberError ? configuration.invalidStyle.textColor : configuration.inputStyle.textColor,
+                        textSize:  isCardFieldFocused ? configuration.onFocusInputStyle.textSize : isCardNumberError ? configuration.invalidStyle.textSize : configuration.inputStyle.textSize,
                         onEditingChanged: { edit in
                             self.isCardFieldFocused = edit
                             if !edit && !isValidCardNumber(cardNumber) {
@@ -385,10 +379,7 @@ public struct XPayPaymentForm: View,XPayFormProtocol {
                         triggerIsReadyEvent()
                         handleBinDiscount()
                     }
-                    .keyboardType(.numberPad)
                     .frame(height: configuration.inputStyle.height)
-                    .foregroundColor(isCardFieldFocused ? configuration.onFocusInputStyle.textColor : isCardNumberError ? configuration.invalidStyle.textColor : configuration.inputStyle.textColor)
-                    .font(.system(size: isCardFieldFocused ? configuration.onFocusInputStyle.textSize : isCardNumberError ? configuration.invalidStyle.textSize : configuration.inputStyle.textSize))
                     AsyncImage(url: URL(string: "https://js.xstak.com/images/\(cardIcon).png")) { phase in
                         if let image = phase.image {
                             image
@@ -421,6 +412,8 @@ public struct XPayPaymentForm: View,XPayFormProtocol {
                         text: $expiryDate,
                         placeholder: configuration.inputConfiguration.expiry.placeholder,
                         keyboardType: .numberPad,
+                        textColor: isExpiryFieldFocused ? configuration.onFocusInputStyle.textColor : isExpiryDateError ? configuration.invalidStyle.textColor : configuration.inputStyle.textColor,
+                        textSize:isExpiryFieldFocused ? configuration.onFocusInputStyle.textSize : isExpiryDateError ? configuration.invalidStyle.textSize : configuration.inputStyle.textSize,
                         onEditingChanged: { edit in
                             self.isExpiryFieldFocused = edit
                             if !edit && !isValidExpiryDate(expiryDate) {
@@ -435,10 +428,7 @@ public struct XPayPaymentForm: View,XPayFormProtocol {
                     .onChange(of: expiryDate) { newValue in
                         triggerIsReadyEvent()
                     }
-                    .keyboardType(.numberPad)
                     .frame(height: configuration.inputStyle.height)
-                    .foregroundColor(isExpiryFieldFocused ? configuration.onFocusInputStyle.textColor : isExpiryDateError ? configuration.invalidStyle.textColor : configuration.inputStyle.textColor)
-                    .font(.system(size: isExpiryFieldFocused ? configuration.onFocusInputStyle.textSize : isExpiryDateError ? configuration.invalidStyle.textSize : configuration.inputStyle.textSize))
                     .padding(.maximum(0, 7))
                     .overlay(
                         RoundedRectangle(cornerRadius: configuration.inputStyle.borderRadius)
@@ -460,6 +450,8 @@ public struct XPayPaymentForm: View,XPayFormProtocol {
                             text: $cvv,
                             placeholder: configuration.inputConfiguration.cvc.placeholder,
                             keyboardType: .numberPad,
+                            textColor: isCVCFieldFocused ? configuration.onFocusInputStyle.textColor : isCVCError ? configuration.invalidStyle.textColor : configuration.inputStyle.textColor,
+                            textSize:isCVCFieldFocused ? configuration.onFocusInputStyle.textSize : isCVCError ? configuration.invalidStyle.textSize : configuration.inputStyle.textSize,
                             onEditingChanged: { edit in
                                 self.isCVCFieldFocused = edit
                                 if !edit && cvv.count > 0 && cvv.count < 3 {
@@ -473,10 +465,7 @@ public struct XPayPaymentForm: View,XPayFormProtocol {
                         .onChange(of: cvv) { newValue in
                             triggerIsReadyEvent()
                         }
-                        .keyboardType(.numberPad)
                         .frame(height: configuration.inputStyle.height)
-                        .foregroundColor(isCVCFieldFocused ? configuration.onFocusInputStyle.textColor : isCVCError ? configuration.invalidStyle.textColor : configuration.inputStyle.textColor)
-                        .font(.system(size: isCVCFieldFocused ? configuration.onFocusInputStyle.textSize : isCVCError ? configuration.invalidStyle.textSize : configuration.inputStyle.textSize))
                         AsyncImage(url: URL(string: "https://js.xstak.com/images/cvc.png")) { phase in
                             if let image = phase.image {
                                 image

@@ -7,19 +7,14 @@
 
 import SwiftUI
 #if os(iOS)
-
-public struct XPayJazzCashPaymentForm: View, XPayFormProtocol {
+public struct XPayEasyPaisaPaymentForm: View, XPayFormProtocol {
     @State private var phoneNumber: String = ""
     @State private var isPhoneNumberFieldFocused = false
     @State private var isPhoneNumberError = false
-    @State private var cnic: String = ""
-    @State private var isCnicFieldFocused = false
-    @State private var isCnicError = false
     @State private var clientSecret = ""
     @State private var apiPayload: [String: Any] = [:]
     @State private var triggerPaymentResponse: (([String: Any]) -> Void)? = nil
     public var onReady: ((Bool) -> Void)?
-    public var onBinDiscount: (([String: Any]) -> Void)?
     var configuration: CustomStyleConfiguration
     var keysConfiguration: KeysConfiguration
     @ObservedObject var controller: XPayController
@@ -34,12 +29,10 @@ public struct XPayJazzCashPaymentForm: View, XPayFormProtocol {
         self.triggerPaymentResponse = paymentResponse
         self.clientSecret = clientSecret
         let cleanedPhoneNumber = phoneNumber.filter { $0.isWholeNumber }
-        let cleanedCnic = cnic.filter { $0.isWholeNumber }
         apiPayload = [
-            "payment_method_types": "jazzcash-wallet",
+            "payment_method_types": "easypaisa-wallet",
             "wallet": [
-                "phone": cleanedPhoneNumber,
-                "cnic": cleanedCnic,
+                "phone": cleanedPhoneNumber
             ],
         ]
         Task {
@@ -74,9 +67,7 @@ public struct XPayJazzCashPaymentForm: View, XPayFormProtocol {
 
     func clear() {
         phoneNumber = ""
-        cnic = ""
         isPhoneNumberError = false
-        isCnicError = false
     }
 
     private func isValidPhoneNumber(_ text: String) -> Bool {
@@ -98,18 +89,8 @@ public struct XPayJazzCashPaymentForm: View, XPayFormProtocol {
         return true
     }
 
-    private func isValidCnic(_ text: String) -> Bool {
-        let digits = text.filter { $0.isWholeNumber }
-        if (digits.count == 6) {
-            return true
-        } else if (digits.count > 0) {
-            return false
-        }
-        return true
-    }
-
     private func triggerIsReadyEvent() {
-        if (isValidPhoneNumber(phoneNumber) && isValidCnic(cnic) && phoneNumber.count > 0 && cnic.count > 0) {
+        if (isValidPhoneNumber(phoneNumber) && phoneNumber.count > 0) {
             self.onReady?(true)
         } else {
             self.onReady?(false)
@@ -117,7 +98,6 @@ public struct XPayJazzCashPaymentForm: View, XPayFormProtocol {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
                 Text(configuration.inputConfiguration.phoneNumber.label)
                     .font(.system(size: configuration.inputLabelStyle.fontSize))
@@ -155,46 +135,7 @@ public struct XPayJazzCashPaymentForm: View, XPayFormProtocol {
                         .font(.system(size: configuration.errorMessageStyle.textSize))
                         .foregroundColor(configuration.errorMessageStyle.textColor)
                 }
-            }
-            VStack(alignment: .leading, spacing: 5) {
-                Text(configuration.inputConfiguration.cnic.label)
-                    .font(.system(size: configuration.inputLabelStyle.fontSize))
-                    .foregroundColor(configuration.inputLabelStyle.textColor)
-                HStack {
-                    UITextFieldWrapper(
-                        text: $cnic,
-                        placeholder: configuration.inputConfiguration.cnic.placeholder,
-                        keyboardType: .numberPad,
-                        textColor: isCnicFieldFocused ? configuration.onFocusInputStyle.textColor : isCnicError ? configuration.invalidStyle.textColor : configuration.inputStyle.textColor,
-                        textSize: isCnicFieldFocused ? configuration.onFocusInputStyle.textSize : isCnicError ? configuration.invalidStyle.textSize : configuration.inputStyle.textSize,
-                        onEditingChanged: { edit in
-                            self.isCnicFieldFocused = edit
-                            if !edit && !isValidCnic(cnic) {
-                                self.isCnicError = true
-                            } else if isCnicError && edit {
-                                self.isCnicError = false
-                            }
-                        },
-                        maxLength: 6,
-                        formatType: .none
-                    )
-                    .onChange(of: cnic) { newValue in
-                        triggerIsReadyEvent()
-                    }
-                    .frame(height: configuration.inputStyle.height)
-                }
-                .padding(.maximum(0, 7))
-                .overlay(
-                    RoundedRectangle(cornerRadius: configuration.inputStyle.borderRadius)
-                        .stroke(isCnicFieldFocused ? configuration.onFocusInputStyle.borderColor : isCnicError ? configuration.invalidStyle.borderColor : configuration.inputStyle.borderColor, lineWidth: isCnicFieldFocused ? configuration.onFocusInputStyle.borderWidth : isCnicError ? configuration.invalidStyle.borderWidth : configuration.inputStyle.borderWidth)
-                )
-                if (isCnicError) {
-                    Text("CNIC number is invalid")
-                        .font(.system(size: configuration.errorMessageStyle.textSize))
-                        .foregroundColor(configuration.errorMessageStyle.textColor)
-                }
-            }
-        }.onAppear {
+            }.onAppear {
             controller.setElement(self)
         }
 

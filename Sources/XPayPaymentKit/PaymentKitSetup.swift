@@ -1,6 +1,7 @@
 import SwiftUI
 
 // controller setup
+@MainActor
 protocol XPayFormProtocol {
     func confirmPayment(
         customerName: String,
@@ -9,7 +10,7 @@ protocol XPayFormProtocol {
     )
     func clear()
 }
-
+@MainActor
 public class XPayController: ObservableObject {
     @Published var xPayElement: XPayFormProtocol?
 
@@ -26,15 +27,19 @@ public class XPayController: ObservableObject {
         clientSecret: String,
         paymentResponse: @escaping (([String: Any]) -> Void)
     ) {
-        xPayElement?.confirmPayment(
-            customerName: customerName,
-            clientSecret: clientSecret,
-            paymentResponse: paymentResponse
-        )
+        DispatchQueue.main.async {
+            self.xPayElement?.confirmPayment(
+                customerName: customerName,
+                clientSecret: clientSecret,
+                paymentResponse: paymentResponse
+            )
+        }
     }
 
     public func clear() {
-        xPayElement?.clear()
+        DispatchQueue.main.async {
+            self.xPayElement?.clear()
+        }
     }
 }
 
@@ -78,11 +83,16 @@ public struct CustomStyleConfiguration {
 
     public static let defaultConfiguration = CustomStyleConfiguration()
 }
+#if swift(>=6.0)
+extension CustomStyleConfiguration: @unchecked Sendable {}
+#endif
 
 public struct InputConfiguration {
     public var cardNumber: InputField
     public var expiry: InputField
     public var cvc: InputField
+    public var phoneNumber: InputField
+    public var cnic: InputField
 
     public init(
         cardNumber: InputField = InputField(
@@ -93,11 +103,21 @@ public struct InputConfiguration {
             label: "Expiry Date",
             placeholder: "MM/YY"
         ),
-        cvc: InputField = InputField(label: "CVC", placeholder: "Enter cvc")
+        cvc: InputField = InputField(label: "CVC", placeholder: "Enter cvc"),
+        phoneNumber: InputField = InputField(
+            label: "Phone Number",
+            placeholder: "0301-2345678"
+        ),
+        cnic: InputField = InputField(
+            label: "CNIC",
+            placeholder: "Enter last 6 digits of CNIC"
+        )
     ) {
         self.cardNumber = cardNumber
         self.expiry = expiry
         self.cvc = cvc
+        self.phoneNumber = phoneNumber
+        self.cnic = cnic
     }
 }
 

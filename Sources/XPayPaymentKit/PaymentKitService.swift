@@ -6,6 +6,9 @@ import SwiftUI
 internal struct APIError: Error {
     let details: [String: Any]
 }
+#if swift(>=6.0)
+extension APIError: @unchecked Sendable {}
+#endif
 private func generateHash(payload: [String: Any], hmacKey: String) -> String? {
     guard let jsonData = try? JSONSerialization.data(withJSONObject: payload, options: []) else {
         return nil
@@ -83,12 +86,15 @@ internal enum FormatType {
     case none
     case creditCard
     case expiryDate
+    case phoneNumber
 }
 
 internal struct UITextFieldWrapper: UIViewRepresentable {
     @Binding var text: String
     var placeholder: String
     var keyboardType: UIKeyboardType
+    var textColor: Color
+    var textSize: CGFloat
     var onEditingChanged: (Bool) -> Void
     var maxLength: Int
     var formatType: FormatType = .none
@@ -142,6 +148,8 @@ internal struct UITextFieldWrapper: UIViewRepresentable {
         textField.delegate = context.coordinator
         textField.keyboardType = keyboardType
         textField.placeholder = placeholder
+        textField.textColor = UIColor(textColor)
+        textField.font = UIFont.systemFont(ofSize: textSize)
         textField.addTarget(context.coordinator, action: #selector(Coordinator.textFieldDidChange(_:)), for: .editingChanged)
         return textField
     }
@@ -150,12 +158,16 @@ internal struct UITextFieldWrapper: UIViewRepresentable {
         if uiView.text != text {
             uiView.text = text
         }
+        uiView.textColor = UIColor(textColor)
+        uiView.font = UIFont.systemFont(ofSize: textSize)
     }
 
     func formatText(_ text: String) -> String {
         switch formatType {
         case .none:
             return text
+        case .phoneNumber:
+            return formatPhoneNumber(text)
         case .creditCard:
             return formatCreditCardNumber(text)
         case .expiryDate:
@@ -174,6 +186,16 @@ internal struct UITextFieldWrapper: UIViewRepresentable {
             formattedText.append(character)
         }
         return formattedText
+    }
+    private func formatPhoneNumber(_ text: String) -> String {
+        let digits = text.filter { $0.isWholeNumber }
+        if digits.count <= 4 {
+            return digits
+        } else {
+            let prefix = digits.prefix(4)
+            let suffix = digits.dropFirst(4)
+            return "\(prefix)-\(suffix)"
+        }
     }
 
     private func formatExpiryDate(_ text: String) -> String {
