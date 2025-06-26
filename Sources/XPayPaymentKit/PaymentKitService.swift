@@ -31,7 +31,7 @@ internal func makeNetworkCall(
     success: @escaping ([String: Any]) -> Void,
     failure: ((Error) -> Void)? = nil
 ) {
-    var baseURL: String = "https://xstak-pay-stg.xstak.com"
+    var baseURL: String = "https://xstak-pay.xstak.com"
     guard let url = URL(string: baseURL + endPoint) else {
         failure?(URLError(.badURL))
         return
