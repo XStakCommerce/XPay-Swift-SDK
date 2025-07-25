@@ -11,267 +11,6 @@ import Foundation
 import Combine
 import CryptoKit
 #if os(iOS)
-public struct CustomStyleConfiguration {
-    public var inputConfiguration: InputConfiguration
-    public var inputStyle: InputStyle
-    public var inputLabelStyle: InputLabelStyle
-    public var onFocusInputStyle: OnFocusInputStyle
-    public var invalidStyle: InvalidStyle
-    public var errorMessageStyle: ErrorMessageStyle
-
-    public init(inputConfiguration: InputConfiguration = InputConfiguration(),
-                inputStyle: InputStyle = InputStyle(),
-                inputLabelStyle: InputLabelStyle = InputLabelStyle(),
-                onFocusInputStyle: OnFocusInputStyle = OnFocusInputStyle(),
-                invalidStyle: InvalidStyle = InvalidStyle(),
-                errorMessageStyle: ErrorMessageStyle = ErrorMessageStyle()) {
-        self.inputConfiguration = inputConfiguration
-        self.inputStyle = inputStyle
-        self.inputLabelStyle = inputLabelStyle
-        self.onFocusInputStyle = onFocusInputStyle
-        self.invalidStyle = invalidStyle
-        self.errorMessageStyle = errorMessageStyle
-    }
-
-    public static let defaultConfiguration = CustomStyleConfiguration()
-}
-
-public struct InputConfiguration {
-    public var cardNumber: InputField
-    public var expiry: InputField
-    public var cvc: InputField
-
-    public init(cardNumber: InputField = InputField(label: "Card Number", placeholder: "Enter card number"),
-                expiry: InputField = InputField(label: "Expiry Date", placeholder: "MM/YY"),
-                cvc: InputField = InputField(label: "CVC", placeholder: "Enter cvc")) {
-        self.cardNumber = cardNumber
-        self.expiry = expiry
-        self.cvc = cvc
-    }
-}
-
-public struct InputField {
-    public var label: String
-    public var placeholder: String
-
-    public init(label: String, placeholder: String) {
-        self.label = label
-        self.placeholder = placeholder
-    }
-}
-
-public struct InputStyle {
-    public var height: CGFloat
-    public var textColor: Color
-    public var textSize: CGFloat
-    public var borderColor: Color
-    public var borderRadius: CGFloat
-    public var borderWidth: CGFloat
-
-    public init(height: CGFloat = 25,
-                textColor: Color = .black,
-                textSize: CGFloat = 17,
-                borderColor: Color = .gray,
-                borderRadius: CGFloat = 5,
-                borderWidth: CGFloat = 1) {
-        self.height = height
-        self.textColor = textColor
-        self.textSize = textSize
-        self.borderColor = borderColor
-        self.borderRadius = borderRadius
-        self.borderWidth = borderWidth
-    }
-}
-
-public struct InputLabelStyle {
-    public var fontSize: CGFloat
-    public var textColor: Color
-
-    public init(fontSize: CGFloat = 17, textColor: Color = .gray) {
-        self.fontSize = fontSize
-        self.textColor = textColor
-    }
-}
-
-public struct OnFocusInputStyle {
-    public var textColor: Color
-    public var textSize: CGFloat
-    public var borderColor: Color
-    public var borderWidth: CGFloat
-
-    public init(textColor: Color = .black, textSize: CGFloat = 17, borderColor: Color = .blue, borderWidth: CGFloat = 1) {
-        self.textColor = textColor
-        self.textSize = textSize
-        self.borderColor = borderColor
-        self.borderWidth = borderWidth
-    }
-}
-
-public struct InvalidStyle {
-    public var borderColor: Color
-    public var borderWidth: CGFloat
-    public var textColor: Color
-    public var textSize: CGFloat
-
-    public init(borderColor: Color = .red, borderWidth: CGFloat = 1, textColor: Color = .red, textSize: CGFloat = 14) {
-        self.borderColor = borderColor
-        self.borderWidth = borderWidth
-        self.textColor = textColor
-        self.textSize = textSize
-    }
-}
-
-public struct ErrorMessageStyle {
-    public var textColor: Color
-    public var textSize: CGFloat
-
-    public init(textColor: Color = .red, textSize: CGFloat = 14) {
-        self.textColor = textColor
-        self.textSize = textSize
-    }
-}
-public struct KeysConfiguration {
-    public var accountId: String
-    public var publicKey: String
-    public var hmacKey: String
-
-    public init(accountId: String, publicKey: String, hmacKey: String) {
-        self.accountId = accountId
-        self.publicKey = publicKey
-        self.hmacKey = hmacKey
-    }
-}
-
-private enum FormatType {
-    case none
-    case creditCard
-    case expiryDate
-}
-
-private struct UITextFieldWrapper: UIViewRepresentable {
-    @Binding var text: String
-    var placeholder: String
-    var keyboardType: UIKeyboardType
-    var onEditingChanged: (Bool) -> Void
-    var maxLength: Int
-    var formatType: FormatType = .none
-
-    class Coordinator: NSObject, UITextFieldDelegate {
-        var parent: UITextFieldWrapper
-
-        init(parent: UITextFieldWrapper) {
-            self.parent = parent
-        }
-
-        @objc func textFieldDidChange(_ textField: UITextField) {
-            guard let selectedTextRange = textField.selectedTextRange else { return }
-
-            let currentText = textField.text ?? ""
-            let cursorPosition = textField.offset(from: textField.beginningOfDocument, to: selectedTextRange.start)
-
-            let formattedText = parent.formatText(currentText)
-            textField.text = formattedText
-            parent.text = formattedText
-
-            let newCursorPosition = cursorPosition + (formattedText.count - currentText.count)
-            if let newPosition = textField.position(from: textField.beginningOfDocument, offset: newCursorPosition) {
-                DispatchQueue.main.async {
-                    textField.selectedTextRange = textField.textRange(from: newPosition, to: newPosition)
-                }
-            }
-        }
-
-        func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
-            let currentText = (textField.text as NSString?)?.replacingCharacters(in: range, with: string) ?? string
-            let digits = currentText.filter { $0.isWholeNumber }
-            return digits.count <= parent.maxLength
-        }
-
-        func textFieldDidBeginEditing(_ textField: UITextField) {
-            parent.onEditingChanged(true)
-        }
-
-        func textFieldDidEndEditing(_ textField: UITextField) {
-            parent.onEditingChanged(false)
-        }
-    }
-
-    func makeCoordinator() -> Coordinator {
-        return Coordinator(parent: self)
-    }
-
-    func makeUIView(context: Context) -> UITextField {
-        let textField = UITextField()
-        textField.delegate = context.coordinator
-        textField.keyboardType = keyboardType
-        textField.placeholder = placeholder
-        textField.addTarget(context.coordinator, action: #selector(Coordinator.textFieldDidChange(_:)), for: .editingChanged)
-        return textField
-    }
-
-    func updateUIView(_ uiView: UITextField, context: Context) {
-        if uiView.text != text {
-            uiView.text = text
-        }
-    }
-
-    func formatText(_ text: String) -> String {
-        switch formatType {
-        case .none:
-            return text
-        case .creditCard:
-            return formatCreditCardNumber(text)
-        case .expiryDate:
-            return formatExpiryDate(text)
-        }
-    }
-
-    private func formatCreditCardNumber(_ text: String) -> String {
-        let digits = text.filter { $0.isWholeNumber }
-        let limitedDigits = String(digits.prefix(maxLength))
-        var formattedText = ""
-        for (index, character) in limitedDigits.enumerated() {
-            if index % 4 == 0 && index != 0 {
-                formattedText.append(" ")
-            }
-            formattedText.append(character)
-        }
-        return formattedText
-    }
-
-    private func formatExpiryDate(_ text: String) -> String {
-        let digits = text.filter { $0.isWholeNumber }
-        let limitedDigits = String(digits.prefix(maxLength))
-        var formattedText = ""
-        for (index, character) in limitedDigits.enumerated() {
-            if index == 2 {
-                formattedText.append("/")
-            }
-            formattedText.append(character)
-        }
-        return formattedText
-    }
-}
-
-public class XPayController: ObservableObject {
-    @Published var xPayElement: XPayPaymentForm?
-
-    public init() {}
-
-    public func setElement(_ element: XPayPaymentForm) {
-        DispatchQueue.main.async {
-            self.xPayElement = element
-        }
-    }
-
-    public func confirmPayment(customerName: String, clientSecret: String, paymentResponse: @escaping (([String: Any]) -> Void)) {
-        xPayElement?.confirmPayment(customerName: customerName, clientSecret: clientSecret, paymentResponse: paymentResponse)
-    }
-
-    public func clear() {
-        xPayElement?.clear()
-    }
-}
 
 struct WebView: UIViewRepresentable {
     let htmlContent: String
@@ -371,7 +110,7 @@ struct WebView: UIViewRepresentable {
     }
 }
 
-public struct XPayPaymentForm: View {
+public struct XPayPaymentForm: View, XPayFormProtocol {
     @State private var cardNumber: String = ""
     @State private var expiryDate: String = ""
     @State private var cvv: String = ""
@@ -387,7 +126,6 @@ public struct XPayPaymentForm: View {
     @State private var csHiddenhtmlContent = ""
     @State private var clientSecret = ""
     @State private var apiPayload: [String: Any] = [:]
-    @State private var baseURL: String = "https://xstak-pay.xstak.com"
     @State private var triggerPaymentResponse: (([String: Any]) -> Void)? = nil
     @State private var isLoading = true
     public var onReady: ((Bool) -> Void)?
@@ -401,21 +139,6 @@ public struct XPayPaymentForm: View {
         self.keysConfiguration = keysConfiguration
         self.onBinDiscount = onBinDiscount
         self.controller = controller
-    }
-
-    private func generateHash(payload: [String: Any]) -> String? {
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: payload, options: []) else {
-            return nil
-        }
-        guard let jsonString = String(data: jsonData, encoding: .utf8) else {
-            return nil
-        }
-        guard let secretKeyString = keysConfiguration.hmacKey.data(using: .utf8) else {
-            return nil
-        }
-        let hmac = HMAC<SHA256>.authenticationCode(for: Data(jsonString.utf8), using: SymmetricKey(data: secretKeyString))
-        let hmacHex = hmac.map { String(format: "%02x", $0) }.joined()
-        return hmacHex
     }
 
     func confirmPayment(customerName: String, clientSecret: String, paymentResponse: @escaping (([String: Any]) -> Void)) {
@@ -436,7 +159,7 @@ public struct XPayPaymentForm: View {
             ],
         ]
         Task {
-            makeNetworkCall(payload: apiPayload, endPoint: "/public/v1/payment/intent/confirm?pi_client_secret=\(self.clientSecret)", success: { responseData in
+            makeNetworkCall(payload: apiPayload, endPoint: "/public/v1/payment/intent/confirm?pi_client_secret=\(self.clientSecret)", keysConfiguration: keysConfiguration, success: { responseData in
                 let lastPaymentResponse = responseData["last_payment_response"] as? [String: Any]
                 let error = (lastPaymentResponse?["error"] as? Int) ?? responseData["error"] as? Int ?? 0
                 let message = (lastPaymentResponse?["message"] as? String) ?? responseData["message"] as? String ?? "Something Went Wrong"
@@ -538,70 +261,11 @@ public struct XPayPaymentForm: View {
             let digits = cardNumber.filter { $0.isWholeNumber }
             let bin = String(digits.prefix(6))
             Task {
-                makeNetworkCall(payload: ["account_id": keysConfiguration.accountId, "bin": bin], endPoint: "/public/v1/bin/config", success: { responseData in
+                makeNetworkCall(payload: ["account_id": keysConfiguration.accountId, "bin": bin], endPoint: "/public/v1/bin/config", keysConfiguration: keysConfiguration, success: { responseData in
                     self.onBinDiscount?(responseData)
                 })
             }
         }
-    }
-
-    struct APIError: Error {
-        let details: [String: Any]
-    }
-
-    private func makeNetworkCall(
-        payload: [String: Any],
-        endPoint: String,
-        success: @escaping ([String: Any]) -> Void,
-        failure: ((Error) -> Void)? = nil
-    ) {
-        guard let url = URL(string: baseURL + endPoint) else {
-            failure?(URLError(.badURL))
-            return
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(keysConfiguration.publicKey, forHTTPHeaderField: "x-api-key")
-        request.setValue(keysConfiguration.accountId, forHTTPHeaderField: "x-account-id")
-        request.setValue(generateHash(payload: payload) ?? "", forHTTPHeaderField: "x-signature")
-        request.setValue("iOS-SDK", forHTTPHeaderField: "x-sdk-source")
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
-        } catch {
-            failure?(error)
-            return
-        }
-        let task = URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                failure?(error)
-                return
-            }
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                failure?(URLError(.badServerResponse))
-                return
-            }
-            if !(200...299).contains(httpResponse.statusCode) {
-                if let data = data, let errorDetails = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
-                    failure?(APIError(details: errorDetails))
-                } else {
-                    failure?(URLError(.badServerResponse))
-                }
-                return
-            }
-
-            guard let data = data,
-                  let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []),
-                  let jsonResponse = jsonObject as? [String: Any],
-                  let dataObject = jsonResponse["data"] as? [String: Any] else {
-                failure?(URLError(.cannotParseResponse))
-                return
-            }
-            success(dataObject)
-        }
-
-        task.resume()
     }
 
     func handleCSIframePostMessage(eventResponse: String) {
@@ -618,7 +282,7 @@ public struct XPayPaymentForm: View {
                     }
                     if (event == "cardinal-commerce-session-id" && messageType == "profile.completed") {
                         self.csHiddenhtmlContent = ""
-                        makeNetworkCall(payload: apiPayload, endPoint: "/public/v1/payment/cybersource/enroll/authentication?pi_client_secret=\(self.clientSecret)", success: { responseData in
+                        makeNetworkCall(payload: apiPayload, endPoint: "/public/v1/payment/cybersource/enroll/authentication?pi_client_secret=\(self.clientSecret)", keysConfiguration: keysConfiguration, success: { responseData in
                             let lastPaymentResponse = responseData["last_payment_response"] as? [String: Any]
                             let error = (lastPaymentResponse?["error"] as? Int) ?? responseData["error"] as? Int ?? 0
                             let message = (lastPaymentResponse?["message"] as? String) ?? responseData["message"] as? String ?? "Something Went Wrong"
@@ -650,12 +314,8 @@ public struct XPayPaymentForm: View {
                     }
                 }
             } catch {
-                print("POST SERVER EVENT DATA: \(eventResponse)")
                 print("ERROR WHILE PARSING DATA FROM SERVER EVENT: \(error)")
             }
-        } else {
-            print("POST SERVER EVENT DATA: \(eventResponse)")
-            print("ERROR WHILE CREATING DATA FROM SERVER EVENT JSON STRING")
         }
     }
 
@@ -681,12 +341,8 @@ public struct XPayPaymentForm: View {
                     }
                 }
             } catch {
-                print("POST SERVER EVENT DATA: \(eventResponse)")
                 print("ERROR WHILE PARSING DATA FROM SERVER EVENT: \(error)")
             }
-        } else {
-            print("POST SERVER EVENT DATA: \(eventResponse)")
-            print("ERROR WHILE CREATING DATA FROM SERVER EVENT JSON STRING")
         }
     }
 
@@ -701,6 +357,8 @@ public struct XPayPaymentForm: View {
                         text: $cardNumber,
                         placeholder: configuration.inputConfiguration.cardNumber.placeholder,
                         keyboardType: .numberPad,
+                        textColor: isCardFieldFocused ? configuration.onFocusInputStyle.textColor : isCardNumberError ? configuration.invalidStyle.textColor : configuration.inputStyle.textColor,
+                        textSize:  isCardFieldFocused ? configuration.onFocusInputStyle.textSize : isCardNumberError ? configuration.invalidStyle.textSize : configuration.inputStyle.textSize,
                         onEditingChanged: { edit in
                             self.isCardFieldFocused = edit
                             if !edit && !isValidCardNumber(cardNumber) {
@@ -721,10 +379,7 @@ public struct XPayPaymentForm: View {
                         triggerIsReadyEvent()
                         handleBinDiscount()
                     }
-                    .keyboardType(.numberPad)
                     .frame(height: configuration.inputStyle.height)
-                    .foregroundColor(isCardFieldFocused ? configuration.onFocusInputStyle.textColor : isCardNumberError ? configuration.invalidStyle.textColor : configuration.inputStyle.textColor)
-                    .font(.system(size: isCardFieldFocused ? configuration.onFocusInputStyle.textSize : isCardNumberError ? configuration.invalidStyle.textSize : configuration.inputStyle.textSize))
                     AsyncImage(url: URL(string: "https://js.xstak.com/images/\(cardIcon).png")) { phase in
                         if let image = phase.image {
                             image
@@ -757,6 +412,8 @@ public struct XPayPaymentForm: View {
                         text: $expiryDate,
                         placeholder: configuration.inputConfiguration.expiry.placeholder,
                         keyboardType: .numberPad,
+                        textColor: isExpiryFieldFocused ? configuration.onFocusInputStyle.textColor : isExpiryDateError ? configuration.invalidStyle.textColor : configuration.inputStyle.textColor,
+                        textSize:isExpiryFieldFocused ? configuration.onFocusInputStyle.textSize : isExpiryDateError ? configuration.invalidStyle.textSize : configuration.inputStyle.textSize,
                         onEditingChanged: { edit in
                             self.isExpiryFieldFocused = edit
                             if !edit && !isValidExpiryDate(expiryDate) {
@@ -771,10 +428,7 @@ public struct XPayPaymentForm: View {
                     .onChange(of: expiryDate) { newValue in
                         triggerIsReadyEvent()
                     }
-                    .keyboardType(.numberPad)
                     .frame(height: configuration.inputStyle.height)
-                    .foregroundColor(isExpiryFieldFocused ? configuration.onFocusInputStyle.textColor : isExpiryDateError ? configuration.invalidStyle.textColor : configuration.inputStyle.textColor)
-                    .font(.system(size: isExpiryFieldFocused ? configuration.onFocusInputStyle.textSize : isExpiryDateError ? configuration.invalidStyle.textSize : configuration.inputStyle.textSize))
                     .padding(.maximum(0, 7))
                     .overlay(
                         RoundedRectangle(cornerRadius: configuration.inputStyle.borderRadius)
@@ -796,6 +450,8 @@ public struct XPayPaymentForm: View {
                             text: $cvv,
                             placeholder: configuration.inputConfiguration.cvc.placeholder,
                             keyboardType: .numberPad,
+                            textColor: isCVCFieldFocused ? configuration.onFocusInputStyle.textColor : isCVCError ? configuration.invalidStyle.textColor : configuration.inputStyle.textColor,
+                            textSize:isCVCFieldFocused ? configuration.onFocusInputStyle.textSize : isCVCError ? configuration.invalidStyle.textSize : configuration.inputStyle.textSize,
                             onEditingChanged: { edit in
                                 self.isCVCFieldFocused = edit
                                 if !edit && cvv.count > 0 && cvv.count < 3 {
@@ -809,10 +465,7 @@ public struct XPayPaymentForm: View {
                         .onChange(of: cvv) { newValue in
                             triggerIsReadyEvent()
                         }
-                        .keyboardType(.numberPad)
                         .frame(height: configuration.inputStyle.height)
-                        .foregroundColor(isCVCFieldFocused ? configuration.onFocusInputStyle.textColor : isCVCError ? configuration.invalidStyle.textColor : configuration.inputStyle.textColor)
-                        .font(.system(size: isCVCFieldFocused ? configuration.onFocusInputStyle.textSize : isCVCError ? configuration.invalidStyle.textSize : configuration.inputStyle.textSize))
                         AsyncImage(url: URL(string: "https://js.xstak.com/images/cvc.png")) { phase in
                             if let image = phase.image {
                                 image
