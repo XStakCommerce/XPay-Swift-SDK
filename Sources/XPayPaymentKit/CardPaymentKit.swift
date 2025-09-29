@@ -17,12 +17,12 @@ struct WebView: UIViewRepresentable {
     let messageHandler: (String) -> Void
     @Binding var isLoading: Bool
     var shouldHide: Bool = false
-
+    
     class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: WebView
         var cancellables = Set<AnyCancellable>()
         var isLoadingSubject = CurrentValueSubject<Bool, Never>(true)
-
+        
         init(parent: WebView) {
             self.parent = parent
             super.init()
@@ -39,15 +39,15 @@ struct WebView: UIViewRepresentable {
                 }
                 .store(in: &cancellables)
         }
-
+        
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             isLoadingSubject.send(false)
         }
-
+        
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             isLoadingSubject.send(false)
         }
-
+        
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             isLoadingSubject.send(false)
             let js = """
@@ -58,7 +58,7 @@ struct WebView: UIViewRepresentable {
             """
             webView.evaluateJavaScript(js, completionHandler: nil)
         }
-
+        
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             if navigationAction.request.url != nil {
                 decisionHandler(.allow)
@@ -66,22 +66,22 @@ struct WebView: UIViewRepresentable {
             }
             decisionHandler(.cancel)
         }
-
+        
         func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
             decisionHandler(.allow)
         }
-
+        
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             if message.name == "XPayPostServerEvent", let messageBody = message.body as? String {
                 parent.messageHandler(messageBody)
             }
         }
     }
-
+    
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
     }
-
+    
     func makeUIView(context: Context) -> WKWebView {
         let webView = WKWebView()
         let contentController = webView.configuration.userContentController
@@ -96,7 +96,7 @@ struct WebView: UIViewRepresentable {
         }
         return webView
     }
-
+    
     func updateUIView(_ webView: WKWebView, context: Context) {
         if webView.url == nil || webView.url?.absoluteString == "about:blank" {
             webView.isHidden = shouldHide
@@ -110,11 +110,21 @@ struct WebView: UIViewRepresentable {
     }
 }
 
+public enum Card {
+    case AMEX
+    case PAYPAK
+}
+internal enum PaymentCard: Hashable {
+    case VISA
+    case MASTERCARD
+    case AMEX
+    case PAYPAK
+}
 public struct XPayPaymentForm: View, XPayFormProtocol {
     @State private var cardNumber: String = ""
     @State private var expiryDate: String = ""
     @State private var cvv: String = ""
-    @State private var cardIcon: String = "visa_master_card"
+    @State private var cardIcon: String = "all"
     @State private var isCardFieldFocused = false
     @State private var isCardNumberError = false
     @State private var isExpiryFieldFocused = false
@@ -133,14 +143,28 @@ public struct XPayPaymentForm: View, XPayFormProtocol {
     var configuration: CustomStyleConfiguration
     var keysConfiguration: KeysConfiguration
     @ObservedObject var controller: XPayController
-    public init(keysConfiguration: KeysConfiguration, customStyle: CustomStyleConfiguration = .defaultConfiguration, onBinDiscount: (([String: Any]) -> Void)? = nil, onReady: ((Bool) -> Void)? = nil, controller: XPayController) {
+    private var allowedCards: Set<PaymentCard>
+    public init(keysConfiguration: KeysConfiguration, customStyle: CustomStyleConfiguration = .defaultConfiguration, onBinDiscount: (([String: Any]) -> Void)? = nil, onReady: ((Bool) -> Void)? = nil, controller: XPayController,  allowedCards: Set<Card> = []) {
         self.configuration = customStyle
         self.onReady = onReady
         self.keysConfiguration = keysConfiguration
         self.onBinDiscount = onBinDiscount
         self.controller = controller
+        
+        // Default cards (Visa + Master always allowed)
+        var cards: Set<PaymentCard> = [.VISA, .MASTERCARD]
+        // Add only the requested extra cards (unique by Set)
+        for extra in allowedCards {
+            switch extra {
+            case .AMEX: cards.insert(.AMEX)
+            case .PAYPAK: cards.insert(.PAYPAK)
+            }
+        }
+        
+        self.allowedCards = cards
+        
     }
-
+    
     func confirmPayment(customerName: String, clientSecret: String, paymentResponse: @escaping (([String: Any]) -> Void)) {
         self.triggerPaymentResponse = paymentResponse
         self.clientSecret = clientSecret
@@ -198,7 +222,7 @@ public struct XPayPaymentForm: View, XPayFormProtocol {
             })
         }
     }
-
+    
     func clear() {
         cardNumber = ""
         expiryDate = ""
@@ -207,23 +231,31 @@ public struct XPayPaymentForm: View, XPayFormProtocol {
         isExpiryDateError = false
         isCVCError = false
     }
-
-    private func isValidCardNumber(_ text: String) -> Bool {
+    
+    private func isValidCardNumber(_ text: String,allowedCards: Set<PaymentCard>) -> Bool {
         let digits = text.filter { $0.isWholeNumber }
-        var firstDigit: Character?
-        if let char = text.first {
-            firstDigit = char
-        } else {
-            firstDigit = nil
+        let cardRules: [(pattern: String, type: PaymentCard, length: Int)] = [
+            ("^4[0-9]{0,}$", .VISA, 16),           // Visa: starts with 4
+            ("^5[0-9]{0,}$", .MASTERCARD, 16),     // MasterCard: starts with 5
+            ("^(34|37)[0-9]{0,}$", .AMEX, 15),     // Amex: starts with 34 or 37
+            ("^2200[0-9]{0,}$", .PAYPAK, 16)       // PayPak: starts with 2200
+        ]
+        
+        for rule in cardRules {
+            if let regex = try? NSRegularExpression(pattern: rule.pattern, options: []) {
+                let range = NSRange(digits.startIndex..<digits.endIndex, in: digits)
+                
+                if regex.firstMatch(in: digits, options: [], range: range) != nil {
+                    guard digits.count == rule.length else { return false }
+                    return allowedCards.contains(rule.type)
+                }
+            }
         }
-        if (digits.count == 16 && (firstDigit == "4" || firstDigit == "5")) {
-            return true
-        } else if (digits.count > 0) {
-            return false
-        }
-        return true
+        
+        return false
     }
-
+    
+    
     private func isValidExpiryDate(_ text: String) -> Bool {
         let digits = text.filter { $0.isWholeNumber }
         if (digits.count == 4) {
@@ -233,31 +265,49 @@ public struct XPayPaymentForm: View, XPayFormProtocol {
         }
         return true
     }
-
-    private func getCardIcon(_ text: String) -> String {
-        guard let firstChar = text.first else {
-            return "visa_master_card"
+    
+    private func getCardIcon(_ text: String, allowedCards: Set<PaymentCard>) -> String {
+        let digits = text.filter { $0.isWholeNumber }
+        
+        guard !digits.isEmpty else {
+            return "all"
         }
-        switch firstChar {
-        case "4":
-            return "visa"
-        case "5":
-            return "mastercard"
-        default:
-            return "visa_master_card"
+        
+        let cardRules: [(pattern: String, type: PaymentCard, icon: String)] = [
+            ("^4[0-9]{0,}$", .VISA, "visa"),
+            ("^5[0-9]{0,}$", .MASTERCARD, "mastercard"),
+            ("^(34|37)[0-9]{0,}$", .AMEX, "amex"),
+            ("^2200[0-9]{0,}$", .PAYPAK, "paypak")
+        ]
+        
+        for rule in cardRules {
+            guard let regex = try? NSRegularExpression(pattern: rule.pattern, options: []) else {
+                continue
+            }
+            
+            let range = NSRange(digits.startIndex..<digits.endIndex, in: digits)
+            if regex.firstMatch(in: digits, options: [], range: range) != nil {
+                // ✅ First match found → return immediately
+                return allowedCards.contains(rule.type) ? rule.icon : "error"
+            }
         }
+        
+        // No match → default fallback
+        return "all"
     }
-
+    
+    
     private func triggerIsReadyEvent() {
-        if (isValidCardNumber(cardNumber) && isValidExpiryDate(expiryDate) && cvv.count == 3 && cardNumber.count > 0 && expiryDate.count > 0) {
+        if (isValidCardNumber(cardNumber,allowedCards: allowedCards) && isValidExpiryDate(expiryDate) && ((cardIcon == "amex" && cvv.count == 4) || (cardIcon != "amex" && cvv.count == 3))
+            && cardNumber.count > 0 && expiryDate.count > 0) {
             self.onReady?(true)
         } else {
             self.onReady?(false)
         }
     }
-
+    
     private func handleBinDiscount() {
-        if (isValidCardNumber(cardNumber) && cardNumber.count > 0) {
+        if (isValidCardNumber(cardNumber,allowedCards: allowedCards) && cardNumber.count > 0) {
             let digits = cardNumber.filter { $0.isWholeNumber }
             let bin = String(digits.prefix(6))
             Task {
@@ -267,7 +317,7 @@ public struct XPayPaymentForm: View, XPayFormProtocol {
             }
         }
     }
-
+    
     func handleCSIframePostMessage(eventResponse: String) {
         if let jsonData = eventResponse.data(using: .utf8) {
             do {
@@ -310,7 +360,7 @@ public struct XPayPaymentForm: View, XPayFormProtocol {
                                 self.triggerPaymentResponse?(["error": true, "data": error])
                             }
                         })
-
+                        
                     }
                 }
             } catch {
@@ -318,7 +368,7 @@ public struct XPayPaymentForm: View, XPayFormProtocol {
             }
         }
     }
-
+    
     func handlePostMessage(eventResponse: String) {
         if let jsonData = eventResponse.data(using: .utf8) {
             do {
@@ -337,7 +387,7 @@ public struct XPayPaymentForm: View, XPayFormProtocol {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                             self.triggerPaymentResponse?(["status": status, "error": error == 0 ? false : true, "message": message])
                         }
-
+                        
                     }
                 }
             } catch {
@@ -345,7 +395,65 @@ public struct XPayPaymentForm: View, XPayFormProtocol {
             }
         }
     }
-
+    
+    struct CardIconsView: View {
+        var cardIcon: String
+        var allowedCards: Set<PaymentCard>?
+        
+        
+        private let cardMap: [(icon: String, type: PaymentCard)] = [
+            ("paypak", .PAYPAK),
+            ("amex", .AMEX),
+            ("visa", .VISA),
+            ("mastercard", .MASTERCARD)
+        ]
+        
+        var body: some View {
+            Group {
+                if cardIcon == "all" {
+                    HStack(spacing: 8) {
+                        ForEach(cardMap, id: \.icon) { item in
+                            if allowedCards?.contains(item.type) ?? true {
+                                cardIconView(icon: item.icon, width: 30)
+                            }
+                        }
+                    }
+                } else {
+                    cardIconView(icon: cardIcon, width: 30)
+                }
+            }
+        }
+        
+        @ViewBuilder
+        private func cardIconView(icon: String, width: CGFloat) -> some View {
+            AsyncImage(url: URL(string: "https://js.xstak.com/images/\(icon).png")) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: width, height: 24)
+                } else {
+                    ProgressView()
+                        .frame(width: width, height: 24)
+                }
+            }
+        }
+    }
+    
+    private func getCvcLength(for cardIcon: String) -> Int {
+        switch cardIcon {
+        case "amex":
+            return 4
+        case "visa", "mastercard", "paypak":
+            return 3
+        default:
+            return 3
+        }
+    }
+    
+    
+    
+    
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
@@ -359,38 +467,39 @@ public struct XPayPaymentForm: View, XPayFormProtocol {
                         keyboardType: .numberPad,
                         textColor: isCardFieldFocused ? configuration.onFocusInputStyle.textColor : isCardNumberError ? configuration.invalidStyle.textColor : configuration.inputStyle.textColor,
                         textSize:  isCardFieldFocused ? configuration.onFocusInputStyle.textSize : isCardNumberError ? configuration.invalidStyle.textSize : configuration.inputStyle.textSize,
-                        onEditingChanged: { edit in
+                        onEditingChangedWithCards: { edit,latestCards in
                             self.isCardFieldFocused = edit
-                            if !edit && !isValidCardNumber(cardNumber) {
+                            let allowed = latestCards ?? []
+                            if !edit && !isValidCardNumber(cardNumber,allowedCards: allowed) {
                                 self.isCardNumberError = true
                                 self.cardIcon = "error"
                             } else if isCardNumberError && edit {
                                 self.isCardNumberError = false
-                                self.cardIcon = getCardIcon(cardNumber)
+                                self.cardIcon = getCardIcon(cardNumber,allowedCards: allowed)
                             }
                         },
-                        maxLength: 16,
+                        maxLength: cardIcon == "amex" ? 15 :16,
+                        enabledCards:allowedCards,
                         formatType: .creditCard
                     )
                     .onChange(of: cardNumber) { newValue in
-                        if cardNumber.count <= 1 {
-                            self.cardIcon = getCardIcon(cardNumber)
+                        if cardNumber.count <= 4 {
+                            let newIcon = getCardIcon(cardNumber, allowedCards: allowedCards)
+                               if newIcon != self.cardIcon {
+                                   self.cardIcon = newIcon
+                                   if newIcon != "all" &&
+                                      ((self.cvv.count == 4 && newIcon != "amex") ||
+                                       (self.cvv.count == 3 && newIcon == "amex")) {
+                                       self.cvv = ""
+                                       self.isCVCError = false
+                                   }
+                               }
                         }
                         triggerIsReadyEvent()
                         handleBinDiscount()
                     }
                     .frame(height: configuration.inputStyle.height)
-                    AsyncImage(url: URL(string: "https://js.xstak.com/images/\(cardIcon).png")) { phase in
-                        if let image = phase.image {
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: cardIcon == "visa_master_card" ? 70 : 30, height: 24)
-                        } else {
-                            ProgressView()
-                                .frame(width: 24, height: 24)
-                        }
-                    }
+                    CardIconsView(cardIcon: cardIcon, allowedCards: allowedCards)
                 }
                 .padding(.maximum(0, 7))
                 .overlay(
@@ -440,7 +549,7 @@ public struct XPayPaymentForm: View, XPayFormProtocol {
                             .foregroundColor(configuration.errorMessageStyle.textColor)
                     }
                 }
-
+                
                 VStack(alignment: .leading, spacing: 4) {
                     Text(configuration.inputConfiguration.cvc.label)
                         .font(.system(size: configuration.inputLabelStyle.fontSize))
@@ -454,13 +563,15 @@ public struct XPayPaymentForm: View, XPayFormProtocol {
                             textSize:isCVCFieldFocused ? configuration.onFocusInputStyle.textSize : isCVCError ? configuration.invalidStyle.textSize : configuration.inputStyle.textSize,
                             onEditingChanged: { edit in
                                 self.isCVCFieldFocused = edit
-                                if !edit && cvv.count > 0 && cvv.count < 3 {
+                                if !edit && cvv.count > 0 &&
+                                   ((cardIcon == "amex" && cvv.count < 4) ||
+                                    (cardIcon != "amex" && cvv.count < 3)) {
                                     self.isCVCError = true
                                 } else if isCVCError && edit {
                                     self.isCVCError = false
                                 }
                             },
-                            maxLength: 3
+                            maxLength: cardIcon == "amex" ? 4 :3,
                         )
                         .onChange(of: cvv) { newValue in
                             triggerIsReadyEvent()
@@ -499,7 +610,7 @@ public struct XPayPaymentForm: View, XPayFormProtocol {
             ZStack {
                 WebView(htmlContent: htmlContent, messageHandler: handlePostMessage, isLoading: $isLoading)
                     .edgesIgnoringSafeArea(.all)
-
+                
                 if isLoading {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle())
@@ -516,7 +627,7 @@ public struct XPayPaymentForm: View, XPayFormProtocol {
                 }
             }
         )
-
+        
     }
 }
 #endif

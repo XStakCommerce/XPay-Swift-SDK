@@ -95,15 +95,25 @@ internal struct UITextFieldWrapper: UIViewRepresentable {
     var keyboardType: UIKeyboardType
     var textColor: Color
     var textSize: CGFloat
-    var onEditingChanged: (Bool) -> Void
+    var onEditingChanged: ((Bool) -> Void)? = nil
+    var onEditingChangedWithCards: ((Bool, Set<PaymentCard>?) -> Void)? = nil
     var maxLength: Int
+    var enabledCards: Set<PaymentCard>? = nil
     var formatType: FormatType = .none
 
     class Coordinator: NSObject, UITextFieldDelegate {
         var parent: UITextFieldWrapper
-
+        var currentMaxLength: Int
+        var currentEnabledCards: Set<PaymentCard>? = nil
         init(parent: UITextFieldWrapper) {
             self.parent = parent
+            self.currentMaxLength = parent.maxLength
+            self.currentEnabledCards = parent.enabledCards
+        }
+        
+        func updateProps(_ newValue: Int, newEnabledCards: Set<PaymentCard>) {
+            currentMaxLength = newValue
+            currentEnabledCards = newEnabledCards
         }
 
         @objc func textFieldDidChange(_ textField: UITextField) {
@@ -112,7 +122,7 @@ internal struct UITextFieldWrapper: UIViewRepresentable {
             let currentText = textField.text ?? ""
             let cursorPosition = textField.offset(from: textField.beginningOfDocument, to: selectedTextRange.start)
 
-            let formattedText = parent.formatText(currentText)
+            let formattedText = parent.formatText(currentText, allowedCards: currentEnabledCards)
             textField.text = formattedText
             parent.text = formattedText
 
@@ -127,15 +137,17 @@ internal struct UITextFieldWrapper: UIViewRepresentable {
         func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
             let currentText = (textField.text as NSString?)?.replacingCharacters(in: range, with: string) ?? string
             let digits = currentText.filter { $0.isWholeNumber }
-            return digits.count <= parent.maxLength
+            return digits.count <= currentMaxLength
         }
 
         func textFieldDidBeginEditing(_ textField: UITextField) {
-            parent.onEditingChanged(true)
+            parent.onEditingChanged?(true)
+            parent.onEditingChangedWithCards?(true, currentEnabledCards)
         }
 
         func textFieldDidEndEditing(_ textField: UITextField) {
-            parent.onEditingChanged(false)
+            parent.onEditingChanged?(false)
+            parent.onEditingChangedWithCards?(false, currentEnabledCards)
         }
     }
 
@@ -155,38 +167,62 @@ internal struct UITextFieldWrapper: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UITextField, context: Context) {
+        context.coordinator.updateProps(maxLength, newEnabledCards: enabledCards ?? [])
         if uiView.text != text {
             uiView.text = text
         }
         uiView.textColor = UIColor(textColor)
         uiView.font = UIFont.systemFont(ofSize: textSize)
+        
     }
 
-    func formatText(_ text: String) -> String {
+    func formatText(_ text: String, allowedCards: Set<PaymentCard>? = nil) -> String {
         switch formatType {
         case .none:
             return text
         case .phoneNumber:
             return formatPhoneNumber(text)
         case .creditCard:
-            return formatCreditCardNumber(text)
+            return formatCreditCardNumber(text, allowedCards: allowedCards)
         case .expiryDate:
             return formatExpiryDate(text)
         }
     }
 
-    private func formatCreditCardNumber(_ text: String) -> String {
+    private func formatCreditCardNumber(_ text: String, allowedCards: Set<PaymentCard>? = nil) -> String {
         let digits = text.filter { $0.isWholeNumber }
+
+        // ✅ Detect Amex with regex
+        let isAmex = (digits.hasPrefix("34") || digits.hasPrefix("37"))
+            && (allowedCards?.contains(.AMEX) ?? false)
+
+        // Limit digits
+        let maxLength = isAmex ? 15 : 16
         let limitedDigits = String(digits.prefix(maxLength))
+
         var formattedText = ""
-        for (index, character) in limitedDigits.enumerated() {
-            if index % 4 == 0 && index != 0 {
-                formattedText.append(" ")
+
+        if isAmex {
+            // ✅ Amex format: 4-6-5
+            for (index, character) in limitedDigits.enumerated() {
+                if index == 4 || index == 10 {
+                    formattedText.append(" ")
+                }
+                formattedText.append(character)
             }
-            formattedText.append(character)
+        } else {
+            // ✅ Default format: groups of 4
+            for (index, character) in limitedDigits.enumerated() {
+                if index % 4 == 0 && index != 0 {
+                    formattedText.append(" ")
+                }
+                formattedText.append(character)
+            }
         }
+
         return formattedText
     }
+
     private func formatPhoneNumber(_ text: String) -> String {
         let digits = text.filter { $0.isWholeNumber }
         if digits.count <= 4 {
