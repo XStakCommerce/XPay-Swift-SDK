@@ -47,12 +47,10 @@ public class XPayController: ObservableObject {
 public struct KeysConfiguration {
     public var accountId: String
     public var publicKey: String
-    public var hmacKey: String
 
-    public init(accountId: String, publicKey: String, hmacKey: String) {
+    public init(accountId: String, publicKey: String) {
         self.accountId = accountId
         self.publicKey = publicKey
-        self.hmacKey = hmacKey
     }
 }
 
