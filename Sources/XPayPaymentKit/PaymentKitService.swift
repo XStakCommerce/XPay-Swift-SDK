@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 import Combine
 import SwiftUI
 #if os(iOS)
@@ -9,21 +8,6 @@ internal struct APIError: Error {
 #if swift(>=6.0)
 extension APIError: @unchecked Sendable {}
 #endif
-private func generateHash(payload: [String: Any], hmacKey: String) -> String? {
-    guard let jsonData = try? JSONSerialization.data(withJSONObject: payload, options: []) else {
-        return nil
-    }
-    guard let jsonString = String(data: jsonData, encoding: .utf8) else {
-        return nil
-    }
-    guard let secretKeyString = hmacKey.data(using: .utf8) else {
-        return nil
-    }
-    let hmac = HMAC<SHA256>.authenticationCode(for: Data(jsonString.utf8), using: SymmetricKey(data: secretKeyString))
-    let hmacHex = hmac.map { String(format: "%02x", $0) }.joined()
-    return hmacHex
-}
-
 internal func makeNetworkCall(
     payload: [String: Any],
     endPoint: String,
@@ -41,7 +25,6 @@ internal func makeNetworkCall(
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue(keysConfiguration.publicKey, forHTTPHeaderField: "x-api-key")
     request.setValue(keysConfiguration.accountId, forHTTPHeaderField: "x-account-id")
-    request.setValue(generateHash(payload: payload, hmacKey:keysConfiguration.hmacKey) ?? "", forHTTPHeaderField: "x-signature")
     request.setValue("iOS-SDK", forHTTPHeaderField: "x-sdk-source")
     do {
         request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
