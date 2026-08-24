@@ -9,7 +9,6 @@ import SwiftUI
 import WebKit
 import Foundation
 import Combine
-import CryptoKit
 #if os(iOS)
 
 struct WebView: UIViewRepresentable {
